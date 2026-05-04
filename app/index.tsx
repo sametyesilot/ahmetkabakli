@@ -172,9 +172,13 @@ export default function App() {
   const isDinnerWarning = hours === 22 && minutes >= 30;
   const warnings = ['Şansına küs ana yemek bitti kral.', 'Kaldın mı garnitüre usta, hızlı in.', 'Bulaşıkları yıkamak istemiyorsan koş.', 'Son çorbalara yetiştin, afiyet olsun.'];
 
-  const handleShare = async () => {
+  const handleShare = async (mealType: 'breakfast' | 'dinner') => {
     try {
-      await Share.share({ message: `Ahmet Kabaklı KYK Menüsü 🍲\n\nKahvaltı:\n• ${todayMenu.breakfast.join('\n• ')}\n\nAkşam:\n• ${todayMenu.dinner.join('\n• ')}` });
+      if (mealType === 'breakfast') {
+        await Share.share({ message: `Ahmet Kabaklı KYK — Sabah Kahvaltısı ☕\n${activeDateStr}\n\n• ${todayMenu.breakfast.join('\n• ')}\n\nAhmet Kabaklı KYK Menü Uygulaması` });
+      } else {
+        await Share.share({ message: `Ahmet Kabaklı KYK — Akşam Yemeği 🍽️\n${activeDateStr}\n\n• ${todayMenu.dinner.join('\n• ')}\n\nAhmet Kabaklı KYK Menü Uygulaması` });
+      }
     } catch (e: any) { Alert.alert(e.message); }
   };
 
@@ -194,9 +198,6 @@ export default function App() {
             </View>
             <Text className="text-xs text-gray-400 mt-1">{activeDateStr}</Text>
           </View>
-          <TouchableOpacity onPress={handleShare} className="bg-indigo-100 p-3 rounded-full">
-            <Share2 size={22} color="#4f46e5" />
-          </TouchableOpacity>
         </View>
 
         {isDinnerWarning && (
@@ -216,9 +217,14 @@ export default function App() {
               <View className="bg-amber-100 p-2 rounded-xl mr-3"><Coffee size={20} color="#d97706" /></View>
               <Text className="text-xl font-bold text-gray-800">Sabah Kahvaltısı</Text>
             </View>
-            <View className="flex-row items-center bg-gray-50 px-2 py-1 rounded-md">
-              <Clock size={14} color="#6b7280" />
-              <Text className="text-xs text-gray-500 font-medium ml-1">06:00 - 12:30</Text>
+            <View className="flex-row items-center gap-2">
+              <TouchableOpacity onPress={() => handleShare('breakfast')} className="bg-amber-50 p-2 rounded-xl border border-amber-100">
+                <Share2 size={16} color="#d97706" />
+              </TouchableOpacity>
+              <View className="flex-row items-center bg-gray-50 px-2 py-1 rounded-md">
+                <Clock size={14} color="#6b7280" />
+                <Text className="text-xs text-gray-500 font-medium ml-1">06:00 - 12:30</Text>
+              </View>
             </View>
           </View>
           <View className="space-y-4">
@@ -244,9 +250,14 @@ export default function App() {
               <View className="bg-indigo-100 p-2 rounded-xl mr-3"><Utensils size={20} color="#4f46e5" /></View>
               <Text className="text-xl font-bold text-gray-800">Akşam Yemeği</Text>
             </View>
-            <View className="flex-row items-center bg-gray-50 px-2 py-1 rounded-md">
-              <Clock size={14} color="#6b7280" />
-              <Text className="text-xs text-gray-500 font-medium ml-1">16:00 - 23:00</Text>
+            <View className="flex-row items-center gap-2">
+              <TouchableOpacity onPress={() => handleShare('dinner')} className="bg-indigo-50 p-2 rounded-xl border border-indigo-100">
+                <Share2 size={16} color="#4f46e5" />
+              </TouchableOpacity>
+              <View className="flex-row items-center bg-gray-50 px-2 py-1 rounded-md">
+                <Clock size={14} color="#6b7280" />
+                <Text className="text-xs text-gray-500 font-medium ml-1">16:00 - 23:00</Text>
+              </View>
             </View>
           </View>
           <View className="space-y-4">
