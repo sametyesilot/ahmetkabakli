@@ -1,4 +1,4 @@
-import { View, Text, ScrollView, TouchableOpacity, Alert, TextInput, Platform } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, Alert, TextInput, Platform, KeyboardAvoidingView } from "react-native";
 import { useEffect, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Share } from "react-native";
@@ -25,6 +25,7 @@ const getDeviceId = async (): Promise<string> => {
 function CommentSection({ mealType, dateStr }: { mealType: 'breakfast' | 'dinner'; dateStr: string }) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [input, setInput] = useState('');
+  const [focused, setFocused] = useState(false);
   const [sending, setSending] = useState(false);
   const [done, setDone] = useState(false);
   const isBreakfast = mealType === 'breakfast';
@@ -71,43 +72,81 @@ function CommentSection({ mealType, dateStr }: { mealType: 'breakfast' | 'dinner
   };
 
   return (
-    <View className="mt-4 pt-4 border-t border-gray-100">
+    <View className="mt-5 pt-4 border-t border-gray-100">
+      {/* Başlık */}
       <View className="flex-row items-center mb-3">
         <MessageCircle size={15} color={accent} />
-        <Text className="text-sm font-bold text-gray-500 ml-1">Yorumlar ({comments.length})</Text>
+        <Text className="text-sm font-bold text-gray-600 ml-1">Yorumlar</Text>
+        <View style={{ backgroundColor: accent + '22' }} className="ml-2 px-2 py-0.5 rounded-full">
+          <Text style={{ color: accent }} className="text-xs font-bold">{comments.length}</Text>
+        </View>
       </View>
 
+      {/* Yorum listesi */}
       {comments.length === 0
-        ? <Text className="text-gray-400 text-xs text-center py-1">Henüz yorum yok.</Text>
+        ? <Text className="text-gray-400 text-xs text-center py-2">Henüz yorum yok. İlk yorumu sen yap!</Text>
         : comments.map(c => (
-          <View key={c.id} className={`${bgCls} border rounded-xl px-3 py-2 mb-2`}>
-            <Text className="text-gray-700 text-sm">{c.text}</Text>
+          <View key={c.id} className={`${bgCls} border rounded-2xl px-4 py-3 mb-2`}>
+            <Text className="text-gray-700 text-sm leading-5">{c.text}</Text>
           </View>
         ))
       }
 
+      {/* Input alanı */}
       {Platform.OS !== 'web' ? (
         done ? (
-          <View className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 mt-2 items-center">
-            <Text className="text-gray-400 text-xs">Bugün bu öğün için yorumunuzu yaptınız ✓</Text>
+          <View className="bg-green-50 border border-green-200 rounded-2xl px-4 py-3 mt-2 flex-row items-center">
+            <Text className="text-green-600 text-sm font-semibold">Yorumunuz gönderildi ✓</Text>
           </View>
         ) : (
-          <View className="flex-row items-center mt-2">
-            <TextInput
-              className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800 mr-2"
-              placeholder="Anonim yorum yaz... (max 150)"
-              value={input}
-              onChangeText={setInput}
-              maxLength={155}
-            />
-            <TouchableOpacity
-              onPress={submit}
-              disabled={sending || !input.trim()}
-              style={{ backgroundColor: sending || !input.trim() ? '#e5e7eb' : accent }}
-              className="p-3 rounded-xl"
-            >
-              <Send size={16} color="white" />
-            </TouchableOpacity>
+          <View className="mt-3">
+            {!focused ? (
+              /* Kompakt pill — tıklayınca açılır */
+              <TouchableOpacity
+                onPress={() => setFocused(true)}
+                style={{ borderColor: accent + '60', borderWidth: 1.5 }}
+                className="flex-row items-center bg-gray-50 rounded-full px-4 h-10"
+              >
+                <MessageCircle size={14} color={accent} />
+                <Text className="text-gray-400 text-sm ml-2 flex-1">Yorum yaz...</Text>
+                <Text style={{ color: accent }} className="text-xs font-semibold">Anonim</Text>
+              </TouchableOpacity>
+            ) : (
+              /* Genişlemiş kart */
+              <View style={{ borderColor: accent, borderWidth: 2 }} className="bg-white rounded-2xl px-4 pt-3 pb-2">
+                <TextInput
+                  style={{ fontSize: 15, color: '#1f2937', minHeight: 44, textAlignVertical: 'top' }}
+                  placeholder="Yorum yaz... (anonim)"
+                  placeholderTextColor="#9ca3af"
+                  value={input}
+                  onChangeText={setInput}
+                  maxLength={150}
+                  multiline
+                  scrollEnabled={false}
+                  autoFocus
+                  onBlur={() => { if (!input.trim()) setFocused(false); }}
+                />
+                <View className="flex-row items-center justify-between mt-2 pt-2 border-t border-gray-100">
+                  <Text className="text-xs text-gray-400">{input.length}/150</Text>
+                  <View className="flex-row items-center">
+                    <TouchableOpacity onPress={() => { setFocused(false); setInput(''); }} className="px-3 py-2 mr-1">
+                      <Text className="text-gray-400 text-sm">İptal</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={submit}
+                      disabled={sending || input.trim().length < 2}
+                      style={{ backgroundColor: input.trim().length >= 2 ? accent : '#d1d5db' }}
+                      className="flex-row items-center px-4 py-2 rounded-xl"
+                    >
+                      <Send size={13} color="white" />
+                      <Text className="text-white font-bold text-sm ml-1">
+                        {sending ? '...' : 'Gönder'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            )}
           </View>
         )
       ) : (
@@ -208,7 +247,8 @@ export default function App() {
 
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
-      <ScrollView className="flex-1 px-4 pt-6" showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} className="flex-1">
+        <ScrollView className="flex-1 px-4 pt-6" showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive">
 
         <View className="mb-6 flex-row items-center justify-between">
           <View>
@@ -298,6 +338,7 @@ export default function App() {
         </View>
 
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
