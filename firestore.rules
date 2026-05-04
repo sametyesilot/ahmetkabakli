@@ -1,0 +1,38 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Menüler: herkes okuyabilir, sadece giriş yapmış admin yazabilir
+    match /meals/{document=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // Ürün kütüphanesi: sadece giriş yapmış admin erişebilir
+    match /products/{document=**} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Yorumlar: herkes okuyabilir, yazma kurallara bağlı
+    match /comments/{mealDoc}/posts/{postId} {
+      allow read: if true;
+      allow create: if
+        // Boş yorum yasak
+        request.resource.data.text is string &&
+        request.resource.data.text.size() >= 5 &&
+        request.resource.data.text.size() <= 150 &&
+        // deviceId zorunlu
+        request.resource.data.deviceId is string &&
+        request.resource.data.deviceId.size() > 0 &&
+        // Sadece belirtilen alanlar
+        request.resource.data.keys().hasOnly(['text', 'deviceId', 'createdAt']);
+      // Yorum güncelleme ve silme yasak (immutable)
+      allow update, delete: if false;
+    }
+
+    // Diğer her şey kapalı
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
