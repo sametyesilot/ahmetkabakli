@@ -4,7 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Share } from "react-native";
 import { Share2, Clock, MapPin, Utensils, AlertTriangle, Coffee, MessageCircle, Send } from "lucide-react-native";
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { doc, getDoc, collection, addDoc, getDocs, query, orderBy, serverTimestamp } from 'firebase/firestore';
+import { doc, onSnapshot, collection, addDoc, getDocs, query, orderBy, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 
 // ---- Filtreler ----
@@ -136,33 +136,54 @@ export default function App() {
   });
 
   useEffect(() => {
-    loadMenuForDate(getTodayStr());
+    const dateStr = getTodayStr();
+    setActiveDateStr(dateStr);
+    const unsub = subscribeToMenu(dateStr);
+
     const timer = setInterval(() => {
       const now = new Date();
       setCurrentTime(now);
       const nd = getTodayStr();
-      setActiveDateStr(prev => { if (prev !== nd) { loadMenuForDate(nd); return nd; } return prev; });
+      setActiveDateStr(prev => {
+        if (prev !== nd) {
+          unsub();
+          subscribeToMenu(nd);
+          return nd;
+        }
+        return prev;
+      });
     }, 60000);
-    return () => clearInterval(timer);
+
+    return () => { unsub(); clearInterval(timer); };
   }, []);
 
   const getPrev = (d: string) => { const x = new Date(d); x.setDate(x.getDate() - 1); return x.toISOString().slice(0, 10); };
 
-  const loadMenuForDate = async (dateStr: string) => {
-    try {
-      const cached = await AsyncStorage.getItem(`menu_${dateStr}`);
+  const subscribeToMenu = (dateStr: string) => {
+    // Önce cache'den anında göster
+    AsyncStorage.getItem(`menu_${dateStr}`).then(cached => {
       if (cached) setTodayMenu(JSON.parse(cached));
-      const snap = await getDoc(doc(db, 'meals', dateStr));
+    });
+
+    // onSnapshot: Firestore local cache'i ANINDA verir, sonra server'dan günceller
+    const unsub = onSnapshot(doc(db, 'meals', dateStr), (snap) => {
       if (snap.exists()) {
         const d = snap.data();
-        const m = { breakfast: d.breakfast || ['Henüz kahvaltı yüklenmemiş'], dinner: d.dinner || ['Henüz akşam yemeği yüklenmemiş'] };
+        const m = {
+          breakfast: d.breakfast || ['Henüz kahvaltı yüklenmemiş'],
+          dinner: d.dinner || ['Henüz akşam yemeği yüklenmemiş']
+        };
         setTodayMenu(m);
-        await AsyncStorage.removeItem(`menu_${getPrev(dateStr)}`);
-        await AsyncStorage.setItem(`menu_${dateStr}`, JSON.stringify(m));
-      } else if (!cached) {
-        setTodayMenu({ breakfast: ['Bugün menü yüklenmemiş.'], dinner: ['Bugün menü yüklenmemiş.'] });
+        AsyncStorage.setItem(`menu_${dateStr}`, JSON.stringify(m));
+        AsyncStorage.removeItem(`menu_${getPrev(dateStr)}`);
+      } else {
+        AsyncStorage.getItem(`menu_${dateStr}`).then(cached => {
+          if (!cached) setTodayMenu({ breakfast: ['Bugün menü yüklenmemiş.'], dinner: ['Bugün menü yüklenmemiş.'] });
+        });
       }
-    } catch (e) { console.log(e); }
+    });
+
+    return unsub;
   };
 
   const hours = currentTime.getHours();
