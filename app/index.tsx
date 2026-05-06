@@ -235,9 +235,9 @@ export default function App() {
   const handleShare = async (mealType: 'breakfast' | 'dinner') => {
     try {
       if (mealType === 'breakfast') {
-        await Share.share({ message: `Ahmet Kabaklı KYK — Sabah Kahvaltısı ☕\n${activeDateStr}\n\n• ${todayMenu.breakfast.join('\n• ')}\n\nAhmet Kabaklı KYK Menü Uygulaması` });
+        await Share.share({ message: `Ahmet Kabaklı KYK — Sabah Kahvaltısı ☕\n${activeDateStr}\n\n• ${todayMenu.breakfast.join('\n• ')}\n\nGünlük menüleri görüntülemek için sitemizi kullanın:\nhttps://ahmetkabakli.vercel.app/` });
       } else {
-        await Share.share({ message: `Ahmet Kabaklı KYK — Akşam Yemeği 🍽️\n${activeDateStr}\n\n• ${todayMenu.dinner.join('\n• ')}\n\nAhmet Kabaklı KYK Menü Uygulaması` });
+        await Share.share({ message: `Ahmet Kabaklı KYK — Akşam Yemeği 🍽️\n${activeDateStr}\n\n• ${todayMenu.dinner.join('\n• ')}\n\nGünlük menüleri görüntülemek için sitemizi kullanın:\nhttps://ahmetkabakli.vercel.app/` });
       }
     } catch (e: any) { Alert.alert(e.message); }
   };

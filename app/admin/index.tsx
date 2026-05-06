@@ -1,5 +1,6 @@
 import { View, Text, TextInput, TouchableOpacity, Image, ScrollView, Alert, Platform } from "react-native";
 import { useState, useEffect } from "react";
+import { Redirect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Upload, Lock, User, ShieldAlert, Plus, Trash2, Calendar, ChevronDown, Check, FileText, Camera, Coffee, UtensilsCrossed, BookOpen, ClipboardList, LogOut } from "lucide-react-native";
 import * as ImagePicker from 'expo-image-picker';
@@ -112,7 +113,11 @@ function CalendarPicker({ selected, onSelect }: { selected: string; onSelect: (d
   );
 }
 
-export default function AdminPanel() {
+export default function AdminScreen() {
+  if (!__DEV__) {
+    return <Redirect href="/" />;
+  }
+
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
