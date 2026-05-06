@@ -274,9 +274,9 @@ export default function App() {
         {/* Kahvaltı */}
         <View className={`bg-white rounded-3xl p-6 mb-5 shadow-sm border ${isBreakfastTime ? 'border-2 border-indigo-400' : 'border-gray-100'}`}>
           <View className="flex-row items-center justify-between mb-5">
-            <View className="flex-row items-center">
+            <View className="flex-row items-center flex-1 pr-2">
               <View className="bg-amber-100 p-2 rounded-xl mr-3"><Coffee size={20} color="#d97706" /></View>
-              <Text className="text-xl font-bold text-gray-800">Sabah Kahvaltısı</Text>
+              <Text className="text-lg font-bold text-gray-800 flex-shrink" numberOfLines={1}>Sabah Kahvaltısı</Text>
             </View>
             <View className="flex-row items-center gap-2">
               <TouchableOpacity onPress={() => handleShare('breakfast')} className="bg-amber-50 p-2 rounded-xl border border-amber-100">
@@ -307,9 +307,9 @@ export default function App() {
         {/* Akşam */}
         <View className={`bg-white rounded-3xl p-6 mb-8 shadow-sm border ${isDinnerTime ? 'border-2 border-indigo-400' : 'border-gray-100'}`}>
           <View className="flex-row items-center justify-between mb-5">
-            <View className="flex-row items-center">
+            <View className="flex-row items-center flex-1 pr-2">
               <View className="bg-indigo-100 p-2 rounded-xl mr-3"><Utensils size={20} color="#4f46e5" /></View>
-              <Text className="text-xl font-bold text-gray-800">Akşam Yemeği</Text>
+              <Text className="text-lg font-bold text-gray-800 flex-shrink" numberOfLines={1}>Akşam Yemeği</Text>
             </View>
             <View className="flex-row items-center gap-2">
               <TouchableOpacity onPress={() => handleShare('dinner')} className="bg-indigo-50 p-2 rounded-xl border border-indigo-100">
