@@ -114,6 +114,10 @@ function CalendarPicker({ selected, onSelect }: { selected: string; onSelect: (d
 }
 
 export default function AdminScreen() {
+  if (!__DEV__) {
+    return <Redirect href="/" />;
+  }
+
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
