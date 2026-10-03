@@ -30,6 +30,22 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // Puanlama: herkes okuyabilir, oylar kurallara uygun olarak eklenebilir
+    match /ratings/{ratingDoc} {
+      allow read: if true;
+      allow write: if true;
+      match /votes/{deviceId} {
+        allow read: if true;
+        allow create: if
+          request.resource.data.score is int &&
+          request.resource.data.score >= 1 &&
+          request.resource.data.score <= 10 &&
+          request.resource.data.deviceId is string &&
+          request.resource.data.deviceId.size() > 0;
+        allow update, delete: if false;
+      }
+    }
+
     // Diğer her şey kapalı
     match /{document=**} {
       allow read, write: if false;

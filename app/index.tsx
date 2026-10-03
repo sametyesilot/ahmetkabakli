@@ -2,9 +2,9 @@ import { View, Text, ScrollView, TouchableOpacity, Alert, TextInput, Platform, K
 import { useEffect, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Share } from "react-native";
-import { Share2, Clock, MapPin, Utensils, AlertTriangle, Coffee, MessageCircle, Send } from "lucide-react-native";
+import { Share2, Clock, MapPin, Utensils, AlertTriangle, Coffee, MessageCircle, Send, Star } from "lucide-react-native";
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { doc, onSnapshot, collection, addDoc, getDocs, query, orderBy, serverTimestamp } from 'firebase/firestore';
+import { doc, onSnapshot, collection, addDoc, getDocs, getDoc, query, orderBy, serverTimestamp, runTransaction } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 
 // ---- Filtreler ----
@@ -20,6 +20,203 @@ const getDeviceId = async (): Promise<string> => {
   if (!id) { id = Math.random().toString(36).slice(2) + Date.now().toString(36); await AsyncStorage.setItem('deviceId', id); }
   return id!;
 };
+
+// ---- Puanlama Bölümü ----
+function RatingSection({ mealType, dateStr }: { mealType: 'breakfast' | 'dinner'; dateStr: string }) {
+  const [ratingData, setRatingData] = useState<{ average: number; count: number; totalScore: number }>({
+    average: 0,
+    count: 0,
+    totalScore: 0,
+  });
+  const [userScore, setUserScore] = useState<number | null>(null);
+  const [selectedScore, setSelectedScore] = useState<number | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const isBreakfast = mealType === 'breakfast';
+  const ratingKey = `${dateStr}_${mealType}`;
+  const accentColor = isBreakfast ? '#d97706' : '#4f46e5';
+
+  useEffect(() => {
+    checkUserVote();
+
+    const ratingDocRef = doc(db, 'ratings', ratingKey);
+    const unsub = onSnapshot(ratingDocRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        setRatingData({
+          average: typeof data.average === 'number' ? data.average : 0,
+          count: typeof data.count === 'number' ? data.count : 0,
+          totalScore: typeof data.totalScore === 'number' ? data.totalScore : 0,
+        });
+      } else {
+        setRatingData({ average: 0, count: 0, totalScore: 0 });
+      }
+    }, (err) => {
+      console.log('Rating snapshot error:', err);
+    });
+
+    return () => unsub();
+  }, [ratingKey]);
+
+  const checkUserVote = async () => {
+    try {
+      const stored = await AsyncStorage.getItem(`rated_${ratingKey}`);
+      if (stored) {
+        setUserScore(parseInt(stored, 10));
+      } else {
+        const deviceId = await getDeviceId();
+        const voteSnap = await getDoc(doc(db, 'ratings', ratingKey, 'votes', deviceId));
+        if (voteSnap.exists()) {
+          const s = voteSnap.data().score;
+          setUserScore(s);
+          await AsyncStorage.setItem(`rated_${ratingKey}`, s.toString());
+        } else {
+          setUserScore(null);
+          setSelectedScore(null);
+        }
+      }
+    } catch (e) {
+      console.log('Error checking vote:', e);
+    }
+  };
+
+  const handleVote = async (score: number) => {
+    if (userScore !== null) {
+      Alert.alert('Bilgi', 'Bu menüyü daha önce puanladınız.');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const deviceId = await getDeviceId();
+      const ratingDocRef = doc(db, 'ratings', ratingKey);
+      const voteDocRef = doc(db, 'ratings', ratingKey, 'votes', deviceId);
+
+      await runTransaction(db, async (transaction) => {
+        const voteDoc = await transaction.get(voteDocRef);
+        if (voteDoc.exists()) {
+          throw new Error('Bu menüyü zaten puanladınız.');
+        }
+
+        const ratingDoc = await transaction.get(ratingDocRef);
+        let newTotal = score;
+        let newCount = 1;
+
+        if (ratingDoc.exists()) {
+          const currentTotal = ratingDoc.data().totalScore || 0;
+          const currentCount = ratingDoc.data().count || 0;
+          newTotal = currentTotal + score;
+          newCount = currentCount + 1;
+        }
+
+        const newAverage = Math.round((newTotal / newCount) * 10) / 10;
+
+        transaction.set(ratingDocRef, {
+          totalScore: newTotal,
+          count: newCount,
+          average: newAverage,
+          lastUpdated: serverTimestamp(),
+        }, { merge: true });
+
+        transaction.set(voteDocRef, {
+          score,
+          deviceId,
+          createdAt: serverTimestamp(),
+        });
+      });
+
+      setUserScore(score);
+      setSelectedScore(null);
+      await AsyncStorage.setItem(`rated_${ratingKey}`, score.toString());
+      Alert.alert('Teşekkürler!', `${score}/10 puanınız başarıyla kaydedildi.`);
+    } catch (e: any) {
+      Alert.alert('Bilgi', e.message || 'Puan kaydedilemedi.');
+      if (e.message?.includes('zaten')) {
+        setUserScore(score);
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const activeScore = userScore !== null ? userScore : (selectedScore || 0);
+
+  return (
+    <View className="mt-5 pt-4 border-t border-gray-100">
+      {/* Başlık ve Toplam / Ortalama Puan Göstergesi */}
+      <View className="flex-row items-center justify-between mb-3">
+        <View className="flex-row items-center">
+          <Star size={16} color={accentColor} fill={accentColor} />
+          <Text className="text-sm font-bold text-gray-800 ml-1.5">Menü Puanı</Text>
+        </View>
+
+        {ratingData.count > 0 ? (
+          <View className="flex-row items-center bg-amber-50 border border-amber-200/80 px-2.5 py-1 rounded-full">
+            <Star size={13} color="#d97706" fill="#d97706" />
+            <Text className="text-amber-900 font-extrabold text-xs ml-1">
+              {ratingData.average.toFixed(1)} <Text className="font-normal text-amber-700">/ 10</Text>
+            </Text>
+            <Text className="text-amber-700 text-[11px] ml-1.5">({ratingData.count} oy)</Text>
+          </View>
+        ) : (
+          <View className="bg-gray-100 px-2.5 py-1 rounded-full">
+            <Text className="text-gray-500 text-xs">Henüz oy yok</Text>
+          </View>
+        )}
+      </View>
+
+      {/* 10 Yıldız Seçici Barı */}
+      <View className="bg-gray-50 border border-gray-100 rounded-2xl p-3">
+        <View className="flex-row items-center justify-between">
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => {
+            const isFilled = num <= activeScore;
+            return (
+              <TouchableOpacity
+                key={num}
+                disabled={userScore !== null || submitting}
+                onPress={() => setSelectedScore(num)}
+                hitSlop={{ top: 8, bottom: 8, left: 3, right: 3 }}
+                className="items-center justify-center flex-1 py-1"
+              >
+                <Star
+                  size={Platform.OS === 'web' ? 22 : 18}
+                  color={isFilled ? '#f59e0b' : '#d1d5db'}
+                  fill={isFilled ? '#f59e0b' : 'transparent'}
+                />
+                <Text className={`text-[10px] font-semibold mt-1 ${isFilled ? 'text-amber-600' : 'text-gray-400'}`}>
+                  {num}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* Durum veya Onay Butonu */}
+        {userScore !== null ? (
+          <View className="mt-3 bg-amber-100/60 border border-amber-200/70 rounded-xl py-2 px-3 flex-row items-center justify-center">
+            <Star size={14} color="#d97706" fill="#d97706" />
+            <Text className="text-amber-800 text-xs font-semibold ml-1.5">
+              Puanınız: {userScore} / 10 • Değerlendirmeniz kaydedildi ✓
+            </Text>
+          </View>
+        ) : selectedScore !== null ? (
+          <TouchableOpacity
+            onPress={() => handleVote(selectedScore)}
+            disabled={submitting}
+            className="mt-3 bg-amber-500 py-2.5 px-4 rounded-xl flex-row items-center justify-center active:bg-amber-600 shadow-sm"
+          >
+            <Star size={15} color="white" fill="white" />
+            <Text className="text-white font-bold text-sm ml-1.5">
+              {submitting ? 'Kaydediliyor...' : `${selectedScore} / 10 Puanı Gönder`}
+            </Text>
+          </TouchableOpacity>
+        ) : (
+          <Text className="text-center text-xs text-gray-400 mt-2">
+            Puanlamak için bir yıldıza dokunun
+          </Text>
+        )}
+      </View>
+    </View>
+  );
+}
 
 // ---- Yorum Bölümü ----
 function CommentSection({ mealType, dateStr }: { mealType: 'breakfast' | 'dinner'; dateStr: string }) {
@@ -301,6 +498,7 @@ export default function App() {
               </View>
             ))}
           </View>
+          <RatingSection mealType="breakfast" dateStr={activeDateStr} />
           <CommentSection mealType="breakfast" dateStr={activeDateStr} />
         </View>
 
@@ -334,6 +532,7 @@ export default function App() {
               </View>
             ))}
           </View>
+          <RatingSection mealType="dinner" dateStr={activeDateStr} />
           <CommentSection mealType="dinner" dateStr={activeDateStr} />
         </View>
 
