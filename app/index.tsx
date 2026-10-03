@@ -31,12 +31,15 @@ function RatingSection({ mealType, dateStr }: { mealType: 'breakfast' | 'dinner'
   const [userScore, setUserScore] = useState<number | null>(null);
   const [selectedScore, setSelectedScore] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [benchmarkAverage, setBenchmarkAverage] = useState<number | null>(null);
+  const [referenceDaysCount, setReferenceDaysCount] = useState<number>(0);
   const isBreakfast = mealType === 'breakfast';
   const ratingKey = `${dateStr}_${mealType}`;
   const accentColor = isBreakfast ? '#d97706' : '#4f46e5';
 
   useEffect(() => {
     checkUserVote();
+    loadBenchmark();
 
     const ratingDocRef = doc(db, 'ratings', ratingKey);
     const unsub = onSnapshot(ratingDocRef, (snap) => {
@@ -56,6 +59,36 @@ function RatingSection({ mealType, dateStr }: { mealType: 'breakfast' | 'dinner'
 
     return () => unsub();
   }, [ratingKey]);
+
+  const loadBenchmark = async () => {
+    try {
+      const snap = await getDocs(collection(db, 'ratings'));
+      let sumAvg = 0;
+      let countDays = 0;
+
+      snap.forEach((docSnap) => {
+        const id = docSnap.id;
+        // Aynı öğün tipi olmalı (örn. breakfast veya dinner) ve geçerli gün olmamalı
+        if (id.endsWith(`_${mealType}`) && !id.startsWith(`${dateStr}_`)) {
+          const data = docSnap.data();
+          if (data && typeof data.average === 'number' && data.count > 0) {
+            sumAvg += data.average;
+            countDays += 1;
+          }
+        }
+      });
+
+      if (countDays > 0) {
+        setBenchmarkAverage(Math.round((sumAvg / countDays) * 10) / 10);
+        setReferenceDaysCount(countDays);
+      } else {
+        setBenchmarkAverage(null);
+        setReferenceDaysCount(0);
+      }
+    } catch (e) {
+      console.log('Error loading benchmark:', e);
+    }
+  };
 
   const checkUserVote = async () => {
     try {
@@ -110,6 +143,8 @@ function RatingSection({ mealType, dateStr }: { mealType: 'breakfast' | 'dinner'
         const newAverage = Math.round((newTotal / newCount) * 10) / 10;
 
         transaction.set(ratingDocRef, {
+          date: dateStr,
+          mealType: mealType,
           totalScore: newTotal,
           count: newCount,
           average: newAverage,
@@ -139,29 +174,84 @@ function RatingSection({ mealType, dateStr }: { mealType: 'breakfast' | 'dinner'
 
   const activeScore = userScore !== null ? userScore : (selectedScore || 0);
 
+  // Önümüzdeki 2 gün boyunca karşılaştırma yapılmaz (referans birikmesi için 2026-10-06 ve sonrası başlar)
+  // Ve en az 2 farklı günün puan verisi olmalıdır.
+  const isAfterGracePeriod = dateStr >= '2026-10-06';
+  const hasEnoughReference = referenceDaysCount >= 2;
+  const showComparison = isAfterGracePeriod && hasEnoughReference && ratingData.count > 0 && benchmarkAverage !== null;
+
+  let comparisonStatus: { label: string; bg: string; textColor: string; diffText: string } | null = null;
+  if (showComparison && benchmarkAverage !== null) {
+    const diff = Math.round((ratingData.average - benchmarkAverage) * 10) / 10;
+    if (diff >= 0.3) {
+      comparisonStatus = {
+        label: 'Ortalamanın Üstünde',
+        bg: 'bg-emerald-50 border border-emerald-200',
+        textColor: 'text-emerald-700',
+        diffText: `+${diff.toFixed(1)} puan yüksek`,
+      };
+    } else if (diff <= -0.3) {
+      comparisonStatus = {
+        label: 'Ortalamanın Altında',
+        bg: 'bg-rose-50 border border-rose-200',
+        textColor: 'text-rose-700',
+        diffText: `${diff.toFixed(1)} puan düşük`,
+      };
+    } else {
+      comparisonStatus = {
+        label: 'Ortalama Seviyede',
+        bg: 'bg-blue-50 border border-blue-200',
+        textColor: 'text-blue-700',
+        diffText: 'Genel ile dengeli',
+      };
+    }
+  }
+
   return (
     <View className="mt-5 pt-4 border-t border-gray-100">
       {/* Başlık ve Toplam / Ortalama Puan Göstergesi */}
-      <View className="flex-row items-center justify-between mb-3">
+      <View className="flex-row items-center justify-between mb-2">
         <View className="flex-row items-center">
           <Star size={16} color={accentColor} fill={accentColor} />
           <Text className="text-sm font-bold text-gray-800 ml-1.5">Menü Puanı</Text>
         </View>
 
-        {ratingData.count > 0 ? (
-          <View className="flex-row items-center bg-amber-50 border border-amber-200/80 px-2.5 py-1 rounded-full">
-            <Star size={13} color="#d97706" fill="#d97706" />
-            <Text className="text-amber-900 font-extrabold text-xs ml-1">
-              {ratingData.average.toFixed(1)} <Text className="font-normal text-amber-700">/ 10</Text>
-            </Text>
-            <Text className="text-amber-700 text-[11px] ml-1.5">({ratingData.count} oy)</Text>
-          </View>
-        ) : (
-          <View className="bg-gray-100 px-2.5 py-1 rounded-full">
-            <Text className="text-gray-500 text-xs">Henüz oy yok</Text>
-          </View>
-        )}
+        <View className="flex-row items-center gap-1.5">
+          {comparisonStatus && (
+            <View className={`px-2 py-0.5 rounded-full flex-row items-center ${comparisonStatus.bg}`}>
+              <Text className={`text-[10px] font-bold ${comparisonStatus.textColor}`}>
+                {comparisonStatus.label}
+              </Text>
+            </View>
+          )}
+
+          {ratingData.count > 0 ? (
+            <View className="flex-row items-center bg-amber-50 border border-amber-200/80 px-2.5 py-1 rounded-full">
+              <Star size={13} color="#d97706" fill="#d97706" />
+              <Text className="text-amber-900 font-extrabold text-xs ml-1">
+                {ratingData.average.toFixed(1)} <Text className="font-normal text-amber-700">/ 10</Text>
+              </Text>
+              <Text className="text-amber-700 text-[11px] ml-1.5">({ratingData.count} oy)</Text>
+            </View>
+          ) : (
+            <View className="bg-gray-100 px-2.5 py-1 rounded-full">
+              <Text className="text-gray-500 text-xs">Henüz oy yok</Text>
+            </View>
+          )}
+        </View>
       </View>
+
+      {/* Referans Karşılaştırma Bilgisi (2 gün sonra referans oluşunca görünür) */}
+      {comparisonStatus && benchmarkAverage !== null && (
+        <View className="flex-row items-center justify-between mb-2.5 py-1 px-2.5 bg-gray-50 border border-gray-100 rounded-xl">
+          <Text className="text-[11px] text-gray-500">
+            Diğer günlerin ortalaması: <Text className="font-bold text-gray-700">{benchmarkAverage.toFixed(1)} / 10</Text> ({referenceDaysCount} gün)
+          </Text>
+          <Text className={`text-[11px] font-bold ${comparisonStatus.textColor}`}>
+            {comparisonStatus.diffText}
+          </Text>
+        </View>
+      )}
 
       {/* 10 Yıldız Seçici Barı */}
       <View className="bg-gray-50 border border-gray-100 rounded-2xl p-3">
