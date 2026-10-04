@@ -521,12 +521,26 @@ export default function App() {
 
   const handleShare = async (mealType: 'breakfast' | 'dinner') => {
     try {
-      if (mealType === 'breakfast') {
-        await Share.share({ message: `Ahmet Kabaklı KYK — Sabah Kahvaltısı ☕\n${activeDateStr}\n\n• ${todayMenu.breakfast.join('\n• ')}\n\nGünlük menüleri görüntülemek için sitemizi kullanın:\nhttps://ahmetkabakli.vercel.app/` });
-      } else {
-        await Share.share({ message: `Ahmet Kabaklı KYK — Akşam Yemeği 🍽️\n${activeDateStr}\n\n• ${todayMenu.dinner.join('\n• ')}\n\nGünlük menüleri görüntülemek için sitemizi kullanın:\nhttps://ahmetkabakli.vercel.app/` });
+      let ratingLine = '⭐ Güncel Puan: Henüz puanlanmadı (Siteden puanlayabilirsiniz)';
+      try {
+        const snap = await getDoc(doc(db, 'ratings', `${activeDateStr}_${mealType}`));
+        if (snap.exists()) {
+          const d = snap.data();
+          if (d && typeof d.average === 'number' && d.count > 0) {
+            ratingLine = `⭐ Güncel Puan: ${d.average.toFixed(1)} / 10 (${d.count} oy) (Siteden puanlayabilirsiniz)`;
+          }
+        }
+      } catch (err) {
+        console.log('Share rating error:', err);
       }
-    } catch (e: any) { Alert.alert(e.message); }
+
+      const mealTitle = mealType === 'breakfast' ? 'Sabah Kahvaltısı ☕' : 'Akşam Yemeği 🍽️';
+      const items = mealType === 'breakfast' ? todayMenu.breakfast : todayMenu.dinner;
+
+      const message = `Ahmet Kabaklı KYK — ${mealTitle}\n${activeDateStr}\n\n• ${items.join('\n• ')}\n\n${ratingLine}\n\nMenüyü görüntülemek ve puanlamak için:\nhttps://ahmetkabakli.vercel.app/`;
+
+      await Share.share({ message });
+    } catch (e: any) { Alert.alert('Hata', e.message); }
   };
 
   const bLabels = ['Ana Yemek', 'Hamur İşi / Yumurta / Kek', 'Krem / Kaşar / Peynir', 'Zeytin', 'Reçel / Tereyağı / Labne / Salata'];
